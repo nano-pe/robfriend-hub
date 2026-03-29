@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<title>Roblox Invite Hub v2</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<style>
+body {
+  background:#000;
+  color:#FFD700;
+  font-family:Arial;
+  text-align:center;
+}
+button {
+  background:#FFD700;
+  color:#000;
+  padding:10px;
+  border:none;
+  margin:5px;
+}
+.card {
+  border:1px solid #FFD700;
+  padding:10px;
+  margin:10px;
+}
+</style>
+</head>
+
+<body>
+
+<h1>🎮 Roblox Invite Hub</h1>
+
+<input id="username" placeholder="Roblox Username">
+<button onclick="login()">Login</button>
+
+<div id="profile" style="display:none;">
+  <img id="avatar" width="120"><br>
+  <h2 id="name"></h2>
+  ⭐ <span id="stars">0</span>
+</div>
+
+<h3>ค้นหาเพื่อน</h3>
+<input id="searchName">
+<button onclick="searchUser()">ค้นหา</button>
+<div id="result"></div>
+
+<h3>🔔 แจ้งเตือน</h3>
+<div id="noti"></div>
+
+<!-- 🔥 Firebase (ใช้ของนายเลย) -->
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/12.11.0/firebase-app.js";
+import { getDatabase, ref, onValue, push, onChildAdded, runTransaction } from "https://www.gstatic.com/firebasejs/12.11.0/firebase-database.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyBKW9j4Hfh88Ajd1oIrIRGzv0E3txL3-xA",
+  authDomain: "rob-friends.firebaseapp.com",
+  projectId: "rob-friends",
+  storageBucket: "rob-friends.firebasestorage.app",
+  messagingSenderId: "620151248418",
+  appId: "1:620151248418:web:dde10ad850cfd1d7f4dc7b",
+  measurementId: "G-YXMPZ1TFCC"
+};
+
+const app = initializeApp(firebaseConfig);
+const db = getDatabase(app);
+
+let currentUser = "";
+
+// 🔥 Roblox API
+async function getUserId(username){
+  let res = await fetch("https://users.roblox.com/v1/usernames/users", {
+    method:"POST",
+    headers:{"Content-Type":"application/json"},
+    body: JSON.stringify({
+      usernames:[username],
+      excludeBannedUsers:true
+    })
+  });
+  let data = await res.json();
+  return data.data[0]?.id;
+}
+
+async function getAvatar(userId){
+  let res = await fetch(`https://thumbnails.roblox.com/v1/users/avatar-headshot?userIds=${userId}&size=150x150&format=Png`);
+  let data = await res.json();
+  return data.data[0].imageUrl;
+}
+
+// LOGIN
+window.login = async function(){
+  let username = document.getElementById("username").value;
+  if(!username) return alert("ใส่ชื่อ");
+
+  let userId = await getUserId(username);
+  if(!userId) return alert("ไม่เจอ user");
+
+  let avatar = await getAvatar(userId);
+
+  currentUser = username;
+
+  document.getElementById("avatar").src = avatar;
+  document.getElementById("name").innerText = username;
+  document.getElementById("profile").style.display="block";
+
+  // โหลดดาว realtime
+  onValue(ref(db, "users/"+username+"/stars"), snap=>{
+    document.getElementById("stars").innerText = snap.val() || 0;
+  });
+
+  // แจ้งเตือน realtime
+  onChildAdded(ref(db, "notifications/"+username), snap=>{
+    let msg = snap.val();
+    document.getElementById("noti").innerHTML += `<div class="card">${msg}</div>`;
+  });
+}
+
+// SEARCH
+window.searchUser = async function(){
+  let name = document.getElementById("searchName").value;
+  let id = await getUserId(name);
+  if(!id) return alert("ไม่เจอ");
+
+  let avatar = await getAvatar(id);
+
+  document.getElementById("result").innerHTML = `
+    <div class="card">
+      <img src="${avatar}" width="80"><br>
+      ${name}<br>
+      <button onclick="invite('${name}')">ชวนเล่น</button>
+      <button onclick="joinGame('${id}')">🎮 Join</button>
+    </div>
+  `;
+}
+
+// INVITE
+window.invite = function(friend){
+  push(ref(db, "notifications/"+friend),
+    currentUser + " ชวนคุณเล่น Roblox!"
+  );
+
+  runTransaction(ref(db, "users/"+currentUser+"/stars"), star=>{
+    return (star||0)+1;
+  });
+}
+
+// JOIN GAME
+window.joinGame = function(userId){
+  window.location.href = "roblox://userId="+userId;
+}
+</script>
+
+</body>
+</html>
